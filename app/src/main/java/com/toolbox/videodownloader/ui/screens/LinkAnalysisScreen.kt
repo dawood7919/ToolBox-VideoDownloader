@@ -30,6 +30,34 @@ data class DetectedVideoInfo(
     val thumbnailBg: Color = Color(0xFF2E5A6E),
 )
 
+/** Live analyze state shown instead of the sample when a real link was read. */
+data class AnalyzeUiState(
+    val working: Boolean = false,
+    val error: String? = null,
+    val ready: Boolean = false,
+    val realTitle: String? = null,
+    val realDetail: String? = null,
+    val streamCount: Int = 0,
+)
+
+fun com.toolbox.videodownloader.ResolveUiState.toAnalyzeUi(): AnalyzeUiState = when (this) {
+    is com.toolbox.videodownloader.ResolveUiState.Idle -> AnalyzeUiState()
+    is com.toolbox.videodownloader.ResolveUiState.Working -> AnalyzeUiState(working = true)
+    is com.toolbox.videodownloader.ResolveUiState.Ready -> AnalyzeUiState(
+        ready = true,
+        realTitle = candidates.firstOrNull()?.title,
+        realDetail = buildString {
+            append(candidates.size)
+            append(" stream")
+            if (candidates.size != 1) append("s")
+            append(" found")
+            candidates.firstOrNull()?.qualityLabel?.let { append(" · $it") }
+        },
+        streamCount = candidates.size,
+    )
+    is com.toolbox.videodownloader.ResolveUiState.Error -> AnalyzeUiState(error = message)
+}
+
 @Composable
 fun LinkAnalysisScreen(
     linkText: String,
@@ -39,6 +67,7 @@ fun LinkAnalysisScreen(
     onAnalyzeClick: () -> Unit,
     onContinueClick: () -> Unit,
     onBack: () -> Unit,
+    analyzeState: AnalyzeUiState = AnalyzeUiState(),
 ) {
     Scaffold(containerColor = AppColors.Background, topBar = {
         BackTopBar(title = "Video Downloader", onBack = onBack)
@@ -82,6 +111,29 @@ fun LinkAnalysisScreen(
                 Text("Analyze", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
 
+            if (analyzeState.working) {
+                Spacer(Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = AppColors.Primary)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Looking for media behind that link…", fontSize = 12.sp, color = AppColors.TextSecondary)
+                }
+            }
+            if (analyzeState.error != null) {
+                Spacer(Modifier.height(14.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF3B1420))
+                        .border(1.dp, AppColors.Danger.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                        .padding(14.dp)
+                ) {
+                    Text("Could not use that link", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Danger)
+                    Spacer(Modifier.height(4.dp))
+                    Text(analyzeState.error, fontSize = 12.sp, color = AppColors.TextSecondary)
+                }
+            }
             if (isAnalyzed) {
                 Spacer(Modifier.height(20.dp))
                 // معاينة الفيديو
@@ -101,8 +153,14 @@ fun LinkAnalysisScreen(
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-                Text(videoInfo.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)
-                Text("${videoInfo.platform} • ${videoInfo.duration}", fontSize = 12.sp, color = AppColors.TextSecondary)
+                Text(
+                    analyzeState.realTitle ?: videoInfo.title,
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary
+                )
+                Text(
+                    analyzeState.realDetail ?: "${videoInfo.platform} • ${videoInfo.duration}",
+                    fontSize = 12.sp, color = AppColors.TextSecondary
+                )
 
                 Spacer(Modifier.height(18.dp))
                 Text("Detected Information", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)

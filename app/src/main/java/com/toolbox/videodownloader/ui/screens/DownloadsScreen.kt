@@ -2,55 +2,64 @@ package com.toolbox.videodownloader.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.toolbox.videodownloader.ToolBoxViewModel
+import com.toolbox.videodownloader.model.DownloadItem as RealDownload
+import com.toolbox.videodownloader.model.DownloadStatus as RealStatus
 import com.toolbox.videodownloader.ui.theme.AppColors
-
-enum class DownloadStatus { DOWNLOADING, COMPLETED, FAILED, QUEUED }
-
-data class DownloadItem(
-    val name: String,
-    val meta: String,       // "1080p • 156 MB"
-    val progress: Float,    // 0f..1f
-    val speed: String,      // "1.2 MB/s"
-    val thumbnailBg: Color,
-    val status: DownloadStatus,
-)
-
-val sampleDownloads = listOf(
-    DownloadItem("Beautiful Nature - 4K...", "1080p • 156 MB", 0.45f, "1.2 MB/s", Color(0xFF2E5A6E), DownloadStatus.DOWNLOADING),
-    DownloadItem("Music - Chill Vibes.mp3", "320 kbps • 12 MB", 0.78f, "0.8 MB/s", Color(0xFF6D3E91), DownloadStatus.DOWNLOADING),
-    DownloadItem("Funny Cats Compilation", "720p • 98 MB", 0f, "Waiting...", Color(0xFF8A6D3E), DownloadStatus.QUEUED),
-    DownloadItem("Dubai Skyline 4K", "4K • 520 MB", 0f, "Queued...", Color(0xFF3E5C8A), DownloadStatus.QUEUED),
-)
+import java.util.Locale
 
 @Composable
 fun DownloadsScreen(
-    downloadingCount: Int = 2,
-    completedCount: Int = 5,
-    failedCount: Int = 1,
-    items: List<DownloadItem> = sampleDownloads,
     onNavigate: (String) -> Unit,
 ) {
-    var selectedTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
-    val tabs = listOf("Downloading  $downloadingCount", "Completed  $completedCount", "Failed  $failedCount")
+    val viewModel: ToolBoxViewModel = viewModel()
+    val downloads by viewModel.downloads.collectAsStateWithLifecycle()
+
+    val active = downloads.filter { it.isActive }
+    val completed = downloads.filter { it.status == RealStatus.Completed }
+    val failed = downloads.filter { it.status == RealStatus.Failed }
+
+    var selectedTab by remember { mutableStateOf(0) }
+    val tabs = listOf(
+        "Downloading  ${active.size}",
+        "Completed  ${completed.size}",
+        "Failed  ${failed.size}",
+    )
+    val visible = when (selectedTab) {
+        0 -> active
+        1 -> completed
+        else -> failed
+    }.sortedByDescending { it.createdAt }
 
     Scaffold(
         containerColor = AppColors.Background,
@@ -88,15 +97,74 @@ fun DownloadsScreen(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                items.forEach { item -> DownloadRow(item) }
+            if (visible.isEmpty()) {
+                Box(Modifier.fillMaxSize().padding(bottom = 120.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        "Nothing here yet — paste a link on Home\nand start a download.",
+                        fontSize = 12.sp,
+                        color = AppColors.TextMuted,
+                        lineHeight = 18.sp
+                    )
+                }
+            } else {
+                LazyColumn(modifier = Modifier.padding(horizontal = 20.dp)) {
+                    items(visible, key = { it.id }) { item ->
+                        DownloadRow(
+                            item = item,
+                            onPause = { viewModel.pause(item.id) },
+                            onResume = { viewModel.resume(item.id) },
+                            onRetry = { viewModel.retry(item.id) },
+                            onCancel = { viewModel.cancel(item.id) },
+                            onRemove = { viewModel.removeCompleted(item.id) },
+                        )
+                    }
+                }
             }
         }
     }
 }
 
+private fun statusLabel(item: RealDownload): String = when (item.status) {
+    RealStatus.Queued -> "Queued"
+    RealStatus.Resolving -> "Preparing"
+    RealStatus.Running -> "Downloading"
+    RealStatus.Paused -> "Paused"
+    RealStatus.Completed -> "Saved"
+    RealStatus.Failed -> "Failed"
+}
+
+private fun metaLine(item: RealDownload): String = buildString {
+    if (item.totalBytes > 0) {
+        append(formatSize(item.totalBytes))
+    } else {
+        append("size unknown")
+    }
+    item.errorMessage?.let { append(" · $it") }
+}
+
+private fun formatSize(bytes: Long): String = when {
+    bytes <= 0 -> "0 B"
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> String.format(Locale.US, "%.0f KB", bytes / 1024.0)
+    bytes < 1024L * 1024 * 1024 -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024))
+    else -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024 * 1024))
+}
+
+private fun formatSpeed(bytesPerSecond: Long): String = when {
+    bytesPerSecond <= 0 -> "—"
+    bytesPerSecond < 1024 * 1024 -> String.format(Locale.US, "%.1f KB/s", bytesPerSecond / 1024.0)
+    else -> String.format(Locale.US, "%.1f MB/s", bytesPerSecond / (1024.0 * 1024))
+}
+
 @Composable
-private fun DownloadRow(item: DownloadItem) {
+private fun DownloadRow(
+    item: RealDownload,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onRetry: () -> Unit,
+    onCancel: () -> Unit,
+    onRemove: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -106,37 +174,62 @@ private fun DownloadRow(item: DownloadItem) {
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(item.thumbnailBg))
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(AppColors.SurfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                if (item.mimeType.startsWith("audio")) Icons.Default.MusicNote else Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = AppColors.Primary,
+                modifier = Modifier.size(22.dp)
+            )
+        }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AppColors.TextPrimary, maxLines = 1)
-            Text(item.meta, fontSize = 11.sp, color = AppColors.TextSecondary)
+            Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(metaLine(item), fontSize = 11.sp, color = AppColors.TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(6.dp))
-            if (item.status == DownloadStatus.DOWNLOADING) {
-                LinearProgressIndicator(
-                    progress = { item.progress },
-                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                    color = AppColors.Primary,
-                    trackColor = AppColors.Divider,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text("${(item.progress * 100).toInt()}%   •   ${item.speed}", fontSize = 10.sp, color = AppColors.TextMuted)
+            if (item.status == RealStatus.Running) {
+                item.progress?.let { progress ->
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                        color = AppColors.Primary,
+                        trackColor = AppColors.Divider,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "${(progress * 100).toInt()}%   •   ${formatSpeed(item.speedBytesPerSecond)}",
+                        fontSize = 10.sp,
+                        color = AppColors.TextMuted
+                    )
+                } ?: Text(statusLabel(item), fontSize = 10.sp, color = AppColors.TextMuted)
             } else {
-                Text(item.speed, fontSize = 10.sp, color = AppColors.TextMuted)
+                Text(statusLabel(item), fontSize = 10.sp, color = AppColors.TextMuted)
             }
         }
         Spacer(Modifier.width(8.dp))
-        val icon = when (item.status) {
-            DownloadStatus.DOWNLOADING -> Icons.Default.Pause
-            DownloadStatus.COMPLETED -> Icons.Default.CheckCircle
-            DownloadStatus.FAILED -> Icons.Default.Error
-            DownloadStatus.QUEUED -> Icons.Default.Download
+        when (item.status) {
+            RealStatus.Running, RealStatus.Queued, RealStatus.Resolving ->
+                IconButton(onClick = onPause, modifier = Modifier.size(34.dp)) {
+                    Icon(Icons.Default.Pause, contentDescription = "Pause", tint = AppColors.TextSecondary, modifier = Modifier.size(20.dp))
+                }
+            RealStatus.Paused ->
+                IconButton(onClick = onResume, modifier = Modifier.size(34.dp)) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = AppColors.Primary, modifier = Modifier.size(20.dp))
+                }
+            RealStatus.Failed ->
+                IconButton(onClick = onRetry, modifier = Modifier.size(34.dp)) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Retry", tint = AppColors.Danger, modifier = Modifier.size(20.dp))
+                }
+            RealStatus.Completed ->
+                IconButton(onClick = onRemove, modifier = Modifier.size(34.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Remove", tint = AppColors.Success, modifier = Modifier.size(20.dp))
+                }
         }
-        val tint = when (item.status) {
-            DownloadStatus.COMPLETED -> AppColors.Success
-            DownloadStatus.FAILED -> AppColors.Danger
-            else -> AppColors.TextSecondary
-        }
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
     }
 }

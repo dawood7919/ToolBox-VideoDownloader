@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.toolbox.videodownloader.ResolveUiState
 import com.toolbox.videodownloader.ToolBoxViewModel
+import com.toolbox.videodownloader.ui.screens.toAnalyzeUi
 import com.toolbox.videodownloader.ui.screens.*
 
 private object Routes {
@@ -95,7 +96,8 @@ fun AppNavGraph() {
                 videoInfo = videoInfo,
                 onAnalyzeClick = viewModel::analyze,
                 onContinueClick = { goTo(Routes.QUALITY) },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                analyzeState = resolveState.toAnalyzeUi()
             )
         }
 
