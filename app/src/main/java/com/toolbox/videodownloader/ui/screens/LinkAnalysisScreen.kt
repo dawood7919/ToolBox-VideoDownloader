@@ -51,7 +51,7 @@ fun com.toolbox.videodownloader.ResolveUiState.toAnalyzeUi(): AnalyzeUiState = w
             append(" stream")
             if (candidates.size != 1) append("s")
             append(" found")
-            candidates.firstOrNull()?.qualityLabel?.let { append(" · $it") }
+            candidates.firstOrNull()?.quality?.let { append(" · $it") }
         },
         streamCount = candidates.size,
     )
