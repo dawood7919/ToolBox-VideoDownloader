@@ -15,9 +15,25 @@ android {
         versionName = "1.0.${System.getenv("TB_VERSION_CODE") ?: "0"}"
     }
 
+    signingConfigs {
+        create("ci") {
+            // One stable key across builds so a new APK installs over the
+            // old one without uninstalling. The keystore is generated once
+            // by CI (keytool) and cached in repo secrets-less plain file.
+            storeFile = file("toolbox-ci.jks")
+            storePassword = "toolboxci"
+            keyAlias = "toolbox"
+            keyPassword = "toolboxci"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("ci")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("ci")
         }
     }
 
