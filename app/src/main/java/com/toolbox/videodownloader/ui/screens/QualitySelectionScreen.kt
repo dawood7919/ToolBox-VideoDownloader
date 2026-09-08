@@ -1,20 +1,37 @@
 package com.toolbox.videodownloader.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,11 +57,23 @@ fun QualitySelectionScreen(
     onAudioOnlyToggle: (Boolean) -> Unit,
     onStartDownload: () -> Unit,
     onBack: () -> Unit,
+    onOpenAdvanced: () -> Unit = {},
 ) {
-    Scaffold(containerColor = AppColors.Background, topBar = {
-        BackTopBar(title = "Download Options", onBack = onBack)
-    }) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
+    Scaffold(
+        containerColor = AppColors.Background,
+        topBar = { BackTopBar(title = "Download Options", onBack = onBack) },
+        bottomBar = {
+            // الزر دايمًا ظاهر تحت — مش جوه السكرول
+            StartDownloadButton(onClick = onStartDownload, enabled = true)
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+        ) {
             // صف معلومات الفيديو
             Row(
                 modifier = Modifier
@@ -65,10 +94,13 @@ fun QualitySelectionScreen(
             Spacer(Modifier.height(18.dp))
             Text("Video Quality", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)
             Spacer(Modifier.height(8.dp))
-            videoQualityOptions.forEach { option ->
+            videoQualityOptions.forEachIndexed { index, option ->
+                val selected = !audioOnlySelected && selectedQuality == option.label
                 QualityRow(
                     option = option,
-                    selected = !audioOnlySelected && selectedQuality == option.label,
+                    selected = selected,
+                    // دخول متتالي ناعم لكل صف
+                    enterDelayMs = index * 45,
                     onClick = {
                         onAudioOnlyToggle(false)
                         onQualitySelected(option.label)
@@ -85,6 +117,7 @@ fun QualitySelectionScreen(
             QualityRow(
                 option = QualityOption("MP3 (320 kbps)", "~12 MB"),
                 selected = audioOnlySelected,
+                enterDelayMs = videoQualityOptions.size * 45,
                 onClick = { onAudioOnlyToggle(true) }
             )
 
@@ -94,7 +127,7 @@ fun QualitySelectionScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(AppColors.Surface)
-                    .clickable { }
+                    .clickable { onOpenAdvanced() }
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -103,35 +136,107 @@ fun QualitySelectionScreen(
                 Icon(Icons.Default.ExpandMore, contentDescription = null, tint = AppColors.TextSecondary)
             }
 
-            Spacer(Modifier.weight(1f))
-            Button(
-                onClick = onStartDownload,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Primary)
-            ) {
-                Icon(Icons.Default.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Start Download", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-            }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-private fun QualityRow(option: QualityOption, selected: Boolean, onClick: () -> Unit) {
+private fun StartDownloadButton(onClick: () -> Unit, enabled: Boolean) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.96f else 1f, spring(stiffness = 400f), label = "press")
+
+    // نبض خفيف على حافة الزر وهو جاهز
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val glow by pulse.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse), label = "glow"
+    )
+
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        interactionSource = interaction,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .height(54.dp)
+            .scale(scale),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.Transparent,
+            disabledContainerColor = Color.Transparent
+        ),
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            AppColors.Primary,
+                            AppColors.Primary.copy(alpha = 0.75f + 0.25f * glow)
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Download, contentDescription = null, tint = Color.White,
+                    modifier = Modifier.size(19.dp).graphicsLayer {
+                        // ايقونة بينزل ويرجع بلامسة خفيفة
+                        translationY = (1f - glow) * 3f
+                    }
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Start Download", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun QualityRow(
+    option: QualityOption,
+    selected: Boolean,
+    onClick: () -> Unit,
+    enterDelayMs: Int = 0,
+) {
+    val bgColor by animateColorAsState(
+        if (selected) AppColors.Primary.copy(alpha = 0.12f) else AppColors.Surface,
+        tween(220), label = "bg"
+    )
+    val borderColor by animateColorAsState(
+        if (selected) AppColors.Primary else AppColors.Divider,
+        tween(220), label = "border"
+    )
+    val scale by animateFloatAsState(
+        if (selected) 1.015f else 1f,
+        spring(dampingRatio = 0.55f, stiffness = 380f), label = "scale"
+    )
+    // دخول متتالي: صف ورا صف
+    val appear = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(enterDelayMs.toLong())
+        appear.animateTo(1f, spring(stiffness = 120f, dampingRatio = 0.85f))
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .graphicsLayer {
+                alpha = appear.value
+                translationY = (1f - appear.value) * 40f
+            }
+            .scale(scale)
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) AppColors.Primary.copy(alpha = 0.12f) else AppColors.Surface)
-            .border(
-                1.dp,
-                if (selected) AppColors.Primary else AppColors.Divider,
-                RoundedCornerShape(12.dp)
-            )
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically

@@ -125,7 +125,8 @@ fun AppNavGraph() {
                     }
                     goTo(Routes.DOWNLOADS)
                 },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onOpenAdvanced = { goTo(Routes.ADVANCED) }
             )
         }
 
