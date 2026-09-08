@@ -97,7 +97,11 @@ fun AppNavGraph() {
                 onAnalyzeClick = viewModel::analyze,
                 onContinueClick = { goTo(Routes.QUALITY) },
                 onBack = { navController.popBackStack() },
-                analyzeState = resolveState.toAnalyzeUi()
+                analyzeState = resolveState.toAnalyzeUi(),
+                onDownloadAll = {
+                    viewModel.enqueueAll(videoStreams.ifEmpty { candidates })
+                    goTo(Routes.DOWNLOADS)
+                }
             )
         }
 
@@ -163,10 +167,14 @@ fun AppNavGraph() {
         }
 
         composable(Routes.PLAYER) {
+            val stream = videoStreams.firstOrNull() ?: candidates.firstOrNull()
             PlayerScreen(
-                videoInfo = videoInfo,
-                isPlaying = isPlaying,
-                onPlayPauseToggle = { isPlaying = !isPlaying },
+                videoInfo = videoInfo.copy(
+                    title = stream?.title ?: videoInfo.title,
+                    platform = stream?.quality ?: videoInfo.platform,
+                ),
+                streamUrl = stream?.mediaUrl,
+                thumbnailUrl = stream?.thumbnailUrl,
                 onBack = { navController.popBackStack() }
             )
         }

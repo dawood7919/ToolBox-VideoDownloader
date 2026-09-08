@@ -35,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.toolbox.videodownloader.ToolBoxViewModel
 import com.toolbox.videodownloader.model.DownloadItem as RealDownload
 import com.toolbox.videodownloader.model.DownloadStatus as RealStatus
+import coil.compose.AsyncImage
 import com.toolbox.videodownloader.ui.theme.AppColors
 import java.util.Locale
 
@@ -181,12 +182,20 @@ private fun DownloadRow(
                 .background(AppColors.SurfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                if (item.mimeType.startsWith("audio")) Icons.Default.MusicNote else Icons.Default.PlayArrow,
-                contentDescription = null,
-                tint = AppColors.Primary,
-                modifier = Modifier.size(22.dp)
-            )
+            if (item.thumbnailUrl != null && !item.mimeType.startsWith("audio")) {
+                AsyncImage(
+                    model = item.thumbnailUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    if (item.mimeType.startsWith("audio")) Icons.Default.MusicNote else Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = AppColors.Primary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {

@@ -189,6 +189,20 @@ fun LinkAnalysisScreen(
                 ) {
                     Text("Continue", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
+
+
+            if (analyzeState.streamCount > 1) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onDownloadAll,
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.Primary)
+                ) {
+                    Icon(Icons.Default.DownloadForOffline, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Download all ${analyzeState.streamCount} videos on this page", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
             Spacer(Modifier.height(16.dp))
         }
