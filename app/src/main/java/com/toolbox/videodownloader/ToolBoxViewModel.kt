@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.toolbox.videodownloader.data.DownloadRepository
+import com.toolbox.videodownloader.service.EngineStarter
 import com.toolbox.videodownloader.extractor.StreamExtractor
 import com.toolbox.videodownloader.model.DownloadItem
 import com.toolbox.videodownloader.model.DownloadStatus
